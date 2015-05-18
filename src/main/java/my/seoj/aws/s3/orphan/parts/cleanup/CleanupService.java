@@ -1,5 +1,6 @@
 package my.seoj.aws.s3.orphan.parts.cleanup;
 
+import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -14,7 +15,16 @@ import com.amazonaws.services.s3.model.PartListing;
 import com.amazonaws.services.s3.model.PartSummary;
 
 /**
+ * <p>
  * Service which aborts any multipart uploads which has not been completed nor aborted.
+ * </p>
+ * <p>
+ * This service uses a pre-configured {@link AmazonS3}, which specifies the credentials and proxy settings when initialized through Spring context. The
+ * configuration can be found in {@link CleanupConfiguration}.
+ * </p>
+ * <p>
+ * For testing purposes, a customized {@link AmazonS3} implementation may be passed in to the constructor.
+ * </p>
  */
 @Service
 public class CleanupService
@@ -37,35 +47,54 @@ public class CleanupService
      */
     public void cleanup(String s3BucketName)
     {
-        boolean truncated = false;
+        // List upload markers. Null implies initial list request.
         String uploadIdMarker = null;
         String keyMarker = null;
+
+        boolean truncated = false;
         do
         {
+            // Create the list multipart request, optionally using the last markers.
             ListMultipartUploadsRequest request = new ListMultipartUploadsRequest(s3BucketName);
             request.setUploadIdMarker(uploadIdMarker);
             request.setKeyMarker(keyMarker);
 
+            // Request listing
             MultipartUploadListing multipartUploadListing = s3.listMultipartUploads(request);
 
             for (MultipartUpload multipartUpload : multipartUploadListing.getMultipartUploads())
             {
                 String s3ObjectKey = multipartUpload.getKey();
-                long size = getSize(s3BucketName, multipartUpload);
 
-                logger.info("cleanup(): s3BucketName = " + s3BucketName + ", s3ObjectKey = " + s3ObjectKey + ", size = " + size);
+                // Only retrieve size information when appropriate logging level because size information is expensive.
+                if (logger.getLevel().isGreaterOrEqual(Level.INFO))
+                {
+                    long size = getSize(s3BucketName, multipartUpload);
+                    logger.info("cleanup(): s3BucketName = " + s3BucketName + ", s3ObjectKey = " + s3ObjectKey + ", size = " + size);
+                }
+
+                // Abort the upload
                 s3.abortMultipartUpload(new AbortMultipartUploadRequest(s3BucketName, s3ObjectKey, multipartUpload.getUploadId()));
             }
 
+            // Determine whether there are more uploads to list
             if (truncated = multipartUploadListing.isTruncated())
             {
+                // Record the list markers
                 uploadIdMarker = multipartUploadListing.getUploadIdMarker();
                 keyMarker = multipartUploadListing.getKeyMarker();
             }
         }
-        while (truncated);
+        while (truncated); // Repeat listing until no more results are found
     }
 
+    /**
+     * Retrieves the total size in bytes for the given bucket and upload.
+     * 
+     * @param s3BucketName - The name of the S3 bucket which the upload belongs to.
+     * @param multipartUpload - The multipart upload
+     * @return The total size in bytes
+     */
     private long getSize(String s3BucketName, MultipartUpload multipartUpload)
     {
         long size = 0;
