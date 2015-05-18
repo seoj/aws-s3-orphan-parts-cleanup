@@ -6,8 +6,12 @@
          <param name="ConversionPattern" value="%t %d %p %c - %m%n" />
       </layout>
    </appender>
-   <logger name="com.amazonaws" additivity="false">
+   <logger name="my.seoj.aws.s3.orphan.parts.cleanup" additivity="false">
       <level value="DEBUG"></level>
+      <appender-ref ref="CONSOLE" />
+   </logger>
+   <logger name="com.amazonaws" additivity="false">
+      <level value="WARN"></level>
       <appender-ref ref="CONSOLE" />
    </logger>
    <root>

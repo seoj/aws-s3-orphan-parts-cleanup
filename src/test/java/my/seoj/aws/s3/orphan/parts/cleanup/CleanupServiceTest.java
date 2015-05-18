@@ -48,6 +48,7 @@ public class CleanupServiceTest
     }
 
     /**
+     * Case 1:
      * <ol>
      * <li>Initiate upload</li>
      * <li>Upload a part</li>
@@ -59,7 +60,7 @@ public class CleanupServiceTest
      * </p>
      */
     @Test
-    public void case1()
+    public void test()
     {
         String uploadId = initiateUpload();
         uploadPart(uploadId);
